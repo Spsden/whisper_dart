@@ -1,0 +1,19 @@
+name: WhisperBindings
+description: Bindings for whisper.cpp
+output: 'lib/src/generated_whisper.dart'
+headers:
+  entry-points:
+    - 'native/whisper.cpp/include/whisper.h'
+  include-directives:
+    - 'native/whisper.cpp/include/whisper.h'
+preamble: |
+  // ignore_for_file: always_specify_types
+  // ignore_for_file: camel_case_types
+  // ignore_for_file: non_constant_identifier_names
+comments:
+  style: any
+  length: full
+compiler-opts:
+  - '-Inative/whisper.cpp/ggml/include'
+  - '-Inative/whisper.cpp/include'
+silence-enum-warning: true
