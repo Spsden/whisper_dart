@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart'; // For compute
 import 'package:flutter/material.dart';
 import 'dart:async';
 
@@ -19,6 +20,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String _whisperVersion = 'Unknown';
+  String _transcription = '';
+  bool _isTranscribing = false;
 
   @override
   void initState() {
@@ -61,6 +64,74 @@ class _MyAppState extends State<MyApp> {
 
   }
 
+  Future<void> _transcribeFile() async {
+      setState(() {
+          _isTranscribing = true;
+          _transcription = "Reading file...";
+      });
+      
+      try {
+          // Load audio file from assets
+          final ByteData data = await rootBundle.load('assets/jfk.wav');
+          
+          setState(() {
+             _transcription = "Decoding WAV...";
+          });
+
+          // Parse WAV - assumes 16-bit mono 16kHz
+          // Skip 44 byte header
+          final headerSize = 44;
+          if (data.lengthInBytes < headerSize) {
+               throw Exception("File too small");
+          }
+          
+          final bytes = data.buffer.asUint8List(headerSize);
+          final samples = <double>[];
+          
+          // Convert Int16 to Float32 [-1.0, 1.0]
+          // data is ByteData. getInt16 handles endianness (default big, we need little for WAV usually?)
+          // WAV is Little Endian usually.
+          for (var i = 0; i < bytes.length; i += 2) {
+              if (i + 1 < bytes.length) {
+                  // asInt16 is not available on Uint8List directly, use ByteData
+                  // But creating ByteData for every sample is slow.
+                  // Better: view
+                  // Actually the whole `data` is ByteData.
+                  // Just use it.
+                  final sample = data.getInt16(i + headerSize, Endian.little);
+                  samples.add(sample / 32768.0);
+              }
+          }
+          
+          setState(() {
+             _transcription = "Transcribing (${samples.length} samples)...";
+          });
+
+          setState(() {
+             _transcription = "Transcribing (${samples.length} samples)...";
+          });
+
+          final dir = await getApplicationDocumentsDirectory();
+          final modelPath = '${dir.path}/ggml-tiny.bin';
+          
+          // Run in background isolate
+          final text = await compute(_transcribeBackground, _TranscriptionRequest(modelPath, samples));
+          
+          setState(() {
+              _transcription = text;
+          });
+
+      } catch (e) {
+          setState(() {
+              _transcription = "Error: $e";
+          });
+      } finally {
+          setState(() {
+              _isTranscribing = false;
+          });
+      }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -73,12 +144,20 @@ class _MyAppState extends State<MyApp> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Whisper.cpp Version: $_whisperVersion\n'),
-              const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text(
-                      "To test actual transcription, you need to copy a 'ggml-tiny.bin' model to the device and initialize Whisper(modelPath: ...)",
-                      textAlign: TextAlign.center,
-                  )
+              const SizedBox(height: 20),
+              if (_isTranscribing)
+                  const CircularProgressIndicator()
+              else
+                  ElevatedButton(
+                      onPressed: _transcribeFile, 
+                      child: const Text("Transcribe 'jfk.wav'"),
+                  ),
+              const SizedBox(height: 20),
+              Expanded(
+                  child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(_transcription),
+                  ),
               ),
             ],
           ),
@@ -86,4 +165,19 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
+}
+
+class _TranscriptionRequest {
+  final String modelPath;
+  final List<double> samples;
+
+  _TranscriptionRequest(this.modelPath, this.samples);
+}
+
+// Top-level function for isolate
+String _transcribeBackground(_TranscriptionRequest request) {
+    final whisper = Whisper(modelPath: request.modelPath);
+    final text = whisper.transcribe(request.samples);
+    whisper.dispose();
+    return text;
 }
