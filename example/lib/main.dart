@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart'; // For compute
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'dart:io';
 import 'package:flutter/services.dart'; // For rootBundle
@@ -22,11 +22,30 @@ class _MyAppState extends State<MyApp> {
   String _whisperVersion = 'Unknown';
   String _transcription = '';
   bool _isTranscribing = false;
+  WhisperIsolate? _whisperIsolate;
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
+    _initIsolate();
+  }
+
+  Future<void> _initIsolate() async {
+      try {
+          // Wait for file to exist if not already? 
+          // Actually initPlatformState copies it.
+          // We can't init isolate until we are sure model is there.
+          // So let's defer init.
+      } catch(e) {
+          print("Error initing isolate: $e");
+      }
+  }
+
+  @override
+  void dispose() {
+      _whisperIsolate?.dispose();
+      super.dispose();
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -47,6 +66,10 @@ class _MyAppState extends State<MyApp> {
       print("Model path: ${file.path}");
       final whisper = Whisper(modelPath: file.path);
       print("Initialized: ${whisper.isInitialized}");
+      whisper.dispose(); // Only checking init for main thread logic, but we want Isolate for work.
+
+      // Init isolate now that model exists
+      _whisperIsolate = await WhisperIsolate.create(modelPath: file.path);
 
     } catch (e) {
       print(e);
@@ -107,15 +130,16 @@ class _MyAppState extends State<MyApp> {
              _transcription = "Transcribing (${samples.length} samples)...";
           });
 
-          setState(() {
-             _transcription = "Transcribing (${samples.length} samples)...";
-          });
 
-          final dir = await getApplicationDocumentsDirectory();
-          final modelPath = '${dir.path}/ggml-tiny.bin';
+
+          if (_whisperIsolate == null) {
+
+               final dir = await getApplicationDocumentsDirectory();
+               final modelPath = '${dir.path}/ggml-tiny.bin';
+               _whisperIsolate = await WhisperIsolate.create(modelPath: modelPath);
+          }
           
-          // Run in background isolate
-          final text = await compute(_transcribeBackground, _TranscriptionRequest(modelPath, samples));
+          final text = await _whisperIsolate!.transcribe(samples: samples, nThreads: 4); // Optimized with 4 threads
           
           setState(() {
               _transcription = text;
@@ -167,17 +191,4 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-class _TranscriptionRequest {
-  final String modelPath;
-  final List<double> samples;
 
-  _TranscriptionRequest(this.modelPath, this.samples);
-}
-
-// Top-level function for isolate
-String _transcribeBackground(_TranscriptionRequest request) {
-    final whisper = Whisper(modelPath: request.modelPath);
-    final text = whisper.transcribe(request.samples);
-    whisper.dispose();
-    return text;
-}

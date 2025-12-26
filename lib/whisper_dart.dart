@@ -3,6 +3,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'src/whisper_lib.dart';
 import 'src/generated_whisper.dart';
+export 'src/whisper_dart_isolate.dart';
 
 export 'src/generated_whisper.dart' show whisper_sampling_strategy;
 
@@ -33,9 +34,10 @@ class Whisper {
 
   /// Transcribes the audio samples.
   /// [samples] must be 16kHz mono PCM normalzed to [-1, 1].
+  /// [nThreads] number of threads to use. Defaults to 4.
   /// This method blocks the calling thread (usually UI thread if not in internal isolate).
   /// Consider running this in a separate Isolate for long audio.
-  String transcribe(List<double> samples) {
+  String transcribe({required List<double> samples, int nThreads = 4}) {
     if (!isInitialized) throw Exception("Model not initialized");
     if (samples.isEmpty) return "";
 
@@ -45,6 +47,7 @@ class Whisper {
     params.print_progress = false;
     params.print_realtime = false;
     params.print_timestamps = false;
+    params.n_threads = nThreads;
     
     // Allocate audio buffer in native memory
     final audioPtr = calloc<Float>(samples.length);
