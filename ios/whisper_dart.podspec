@@ -12,17 +12,16 @@ A new Flutter plugin project.
   s.homepage         = 'http://example.com'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Your Company' => 'email@example.com' }
-  s.source           = { :path => '.' }
-  s.source_files = 'Classes/**/*', '../native/whisper.cpp/src/whisper.cpp', '../native/whisper.cpp/include/whisper.h', '../native/whisper.cpp/ggml/src/ggml.c', '../native/whisper.cpp/ggml/src/ggml.cpp', '../native/whisper.cpp/ggml/src/ggml-alloc.c', '../native/whisper.cpp/ggml/src/ggml-backend.cpp', '../native/whisper.cpp/ggml/src/ggml-opt.cpp', '../native/whisper.cpp/ggml/src/ggml-threading.cpp', '../native/whisper.cpp/ggml/src/ggml-quants.c', '../native/whisper.cpp/ggml/src/gguf.cpp'
+  s.source_files = 'Classes/**/*', '../native/whisper.cpp/src/whisper.cpp', '../native/whisper.cpp/include/whisper.h', '../native/whisper.cpp/ggml/src/ggml.c', '../native/whisper.cpp/ggml/src/ggml.cpp', '../native/whisper.cpp/ggml/src/ggml-alloc.c', '../native/whisper.cpp/ggml/src/ggml-backend.cpp', '../native/whisper.cpp/ggml/src/ggml-opt.cpp', '../native/whisper.cpp/ggml/src/ggml-threading.cpp', '../native/whisper.cpp/ggml/src/ggml-quants.c', '../native/whisper.cpp/ggml/src/ggml-quants.h', '../native/whisper.cpp/ggml/src/gguf.cpp', '../native/whisper.cpp/ggml/src/ggml-backend-reg.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/ggml-cpu.c', '../native/whisper.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/repack.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/hbm.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/quants.c', '../native/whisper.cpp/ggml/src/ggml-cpu/traits.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/amx/amx.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/amx/mmq.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/binary-ops.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/unary-ops.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/vec.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/ops.cpp', '../native/whisper.cpp/ggml/src/ggml-cpu/arch/arm/quants.c', '../native/whisper.cpp/ggml/src/ggml-cpu/arch/arm/repack.cpp'
   
   s.compiler_flags = '-O3 -D_GNU_SOURCE'
 
   s.pod_target_xcconfig = { 
     'DEFINES_MODULE' => 'YES', 
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
-    'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/../native/whisper.cpp/include" "$(PODS_TARGET_SRCROOT)/../native/whisper.cpp/ggml/include" "$(PODS_TARGET_SRCROOT)/../native/whisper.cpp/ggml/src"',
+    'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/../native/whisper.cpp/include" "$(PODS_TARGET_SRCROOT)/../native/whisper.cpp/ggml/include" "$(PODS_TARGET_SRCROOT)/../native/whisper.cpp/ggml/src" "$(PODS_TARGET_SRCROOT)/../native/whisper.cpp/ggml/src/ggml-cpu"',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
-    'GCC_PREPROCESSOR_DEFINITIONS' => 'GGML_USE_CPU=1'
+    'GCC_PREPROCESSOR_DEFINITIONS' => 'GGML_USE_CPU=1 GGML_VERSION="unversioned" GGML_COMMIT="unknown" WHISPER_VERSION="1.0.0"'
   }
   s.swift_version = '5.0'
 

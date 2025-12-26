@@ -13,6 +13,8 @@ class Whisper {
 
   Whisper({required String modelPath}) {
     final pathPtr = modelPath.toNativeUtf8();
+
+
     _ctx = bindings.whisper_init_from_file(pathPtr.cast());
     calloc.free(pathPtr);
     

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:flutter/services.dart';
+import 'dart:io';
+import 'package:flutter/services.dart'; // For rootBundle
+import 'package:path_provider/path_provider.dart';
 import 'package:whisper_dart/whisper_dart.dart';
 
 void main() {
@@ -16,8 +18,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
-  final _whisperDartPlugin = WhisperDart();
+  String _whisperVersion = 'Unknown';
 
   @override
   void initState() {
@@ -27,24 +28,37 @@ class _MyAppState extends State<MyApp> {
 
   // Platform messages are asynchronous, so we initialize in an async method.
   Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
+    String version;
     try {
-      platformVersion =
-          await _whisperDartPlugin.getPlatformVersion() ?? 'Unknown platform version';
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
+      version = Whisper.version ?? 'Failed to get version';
+      
+      // Copy model from assets to app documents directory
+      final ByteData data = await rootBundle.load('assets/ggml-tiny.bin');
+      final Directory dir = await getApplicationDocumentsDirectory();
+      final File file = File('${dir.path}/ggml-tiny.bin');
+      
+      if (!await file.exists()) {
+          await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
+      }
+      
+      print("Model path: ${file.path}");
+      final whisper = Whisper(modelPath: file.path);
+      print("Initialized: ${whisper.isInitialized}");
 
+    } catch (e) {
+      print(e);
+      version = 'Failed to get version: $e';
+    }
+    
     // If the widget was removed from the tree while the asynchronous platform
     // message was in flight, we want to discard the reply rather than calling
     // setState to update our non-existent appearance.
     if (!mounted) return;
 
     setState(() {
-      _platformVersion = platformVersion;
+      _whisperVersion = version;
     });
+
   }
 
   @override
@@ -52,10 +66,22 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Plugin example app'),
+          title: const Text('Whisper.dart Example'),
         ),
         body: Center(
-          child: Text('Running on: $_platformVersion\n'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Whisper.cpp Version: $_whisperVersion\n'),
+              const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                      "To test actual transcription, you need to copy a 'ggml-tiny.bin' model to the device and initialize Whisper(modelPath: ...)",
+                      textAlign: TextAlign.center,
+                  )
+              ),
+            ],
+          ),
         ),
       ),
     );
