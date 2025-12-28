@@ -89,57 +89,26 @@ class _MyAppState extends State<MyApp> {
   Future<void> _transcribeFile() async {
     setState(() {
       _isTranscribing = true;
-      _transcription = "Reading file...";
+      _transcription = "Preparing audio...";
     });
 
     try {
-      // 1. Load audio file
+      // 1. Copy jfk.wav from assets to local file system
       final ByteData data = await rootBundle.load('assets/jfk.wav');
-
-      setState(() {
-        _transcription = "Decoding WAV...";
-      });
-
-      // 2. Parse WAV Header
-      const headerSize = 44;
-      if (data.lengthInBytes < headerSize) {
-        throw Exception("File too small");
-      }
-
-      // 3. Calculate number of samples (Total bytes - header / 2 bytes per sample)
-      final int numSamples = (data.lengthInBytes - headerSize) ~/ 2;
-
-      // 4. Create Float32List directly (Faster than List<double>)
-      final samples = Float32List(numSamples);
-
-      // 5. Convert Int16 PCM to Float32
-      for (var i = 0; i < numSamples; i++) {
-        // Calculate byte offset: Header + (Sample Index * 2)
-        final int offset = headerSize + (i * 2);
-
-        // Read Int16 (Little Endian for WAV)
-        final int sample = data.getInt16(offset, Endian.little);
-
-        // Normalize to Float32 [-1.0, 1.0]
-        samples[i] = sample / 32768.0;
+      final Directory dir = await getApplicationDocumentsDirectory();
+      final File wavFile = File('${dir.path}/jfk.wav');
+      
+      if (!await wavFile.exists()) {
+        await wavFile.writeAsBytes(data.buffer.asUint8List(), flush: true);
       }
 
       setState(() {
-        _transcription = "Transcribing (${samples.length} samples)...";
+        _transcription = "Transcribing...";
       });
 
-      // Check Isolate
-      if (_whisperIsolate == null) {
-        // Make sure this path matches what you actually saved in initPlatformState
-        // or ensure you copy the q8 model if you intend to use it.
-        final dir = await getApplicationDocumentsDirectory();
-        final modelPath = '${dir.path}/ggml-tiny-q8_0.bin';
-        _whisperIsolate = await WhisperIsolate.create(modelPath: modelPath);
-      }
-
-      // 6. Pass Float32List to Isolate
+      // 2. Pass file path to Isolate
       final text = await _whisperIsolate!.transcribe(
-        samples: samples,
+        audioFile: wavFile.path,
         nThreads: 4,
       );
 
@@ -150,7 +119,7 @@ class _MyAppState extends State<MyApp> {
       setState(() {
         _transcription = "Error: $e";
       });
-      print(e); // Print to console for detailed stack trace
+      print(e);
     } finally {
       setState(() {
         _isTranscribing = false;
