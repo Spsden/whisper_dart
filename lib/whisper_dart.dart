@@ -3,6 +3,7 @@ import 'dart:typed_data'; // ✅ Correct import for Float32List
 import 'package:ffi/ffi.dart';
 import 'src/whisper_lib.dart';
 import 'src/generated_whisper.dart';
+import 'src/wav_util.dart';
 
 export 'src/whisper_dart_isolate.dart';
 export 'src/generated_whisper.dart' show whisper_sampling_strategy;
@@ -94,6 +95,12 @@ class Whisper {
     }
 
     return sb.toString();
+  }
+
+  /// Transcribes a WAV file (16kHz mono).
+  Future<String> transcribeWavFile({required String path, int nThreads = 4}) async {
+    final samples = await WavUtil.decodeWavFile(path);
+    return transcribe(samples: samples, nThreads: nThreads);
   }
 
   void dispose() {

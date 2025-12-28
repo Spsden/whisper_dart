@@ -22,18 +22,32 @@ class WhisperIsolate {
     return WhisperIsolate._(isolate, sendPort, receivePort);
   }
 
-  /// Transcribes audio samples in the background isolate.
-  /// [samples] - 16kHz mono PCM data. MUST be Float32List for performance.
+  /// Transcribes audio in the background isolate.
+  /// Provide either [samples] (Float32List 16kHz mono) or [audioFile] (WAV file path).
   /// [nThreads] - number of threads to use. Defaults to 4.
-  Future<String> transcribe({required Float32List samples, int nThreads = 4}) async {
+  Future<String> transcribe({
+    Float32List? samples,
+    String? audioFile,
+    int nThreads = 4,
+  }) async {
+    if (samples == null && audioFile == null) {
+      throw ArgumentError("Either samples or audioFile must be provided");
+    }
+
     final responsePort = ReceivePort();
+    TransferableTypedData? transferable;
 
-    // OPTIMIZATION: Wrap data in TransferableTypedData.
-    // This allows passing the large audio buffer to the isolate
-    // without copying the memory, significantly reducing UI jank.
-    final transferable = TransferableTypedData.fromList([samples]);
+    if (samples != null) {
+      transferable = TransferableTypedData.fromList([samples]);
+    }
 
-    _sendPort.send(_TranscribeMessage(responsePort.sendPort, transferable, nThreads));
+    _sendPort.send(_TranscribeMessage(
+      responsePort.sendPort,
+      audioData: transferable,
+      audioFile: audioFile,
+      nThreads: nThreads,
+    ));
+
     final result = await responsePort.first;
 
     if (result is String) {
@@ -63,9 +77,10 @@ class _InitMessage {
 class _TranscribeMessage {
   final SendPort sendPort;
   // Use TransferableTypedData instead of List/Float32List for transport
-  final TransferableTypedData audioData;
+  final TransferableTypedData? audioData;
+  final String? audioFile;
   final int nThreads;
-  _TranscribeMessage(this.sendPort, this.audioData, this.nThreads);
+  _TranscribeMessage(this.sendPort, {this.audioData, this.audioFile, required this.nThreads});
 }
 
 // Entry Point
@@ -85,17 +100,25 @@ void _isolateEntryPoint(_InitMessage initMessage) {
     return;
   }
 
-  receivePort.listen((message) {
+  receivePort.listen((message) async {
     if (message is _TranscribeMessage) {
       try {
-        // UNPACK: Materialize the transferable data back into a usable Float32List
-        final Float32List samples = message.audioData.materialize().asFloat32List();
-
-        // Pass to the optimized Whisper class
-        final result = whisper!.transcribe(
+        String result;
+        if (message.audioFile != null) {
+          result = await whisper!.transcribeWavFile(
+            path: message.audioFile!,
+            nThreads: message.nThreads,
+          );
+        } else if (message.audioData != null) {
+          // UNPACK: Materialize the transferable data back into a usable Float32List
+          final Float32List samples = message.audioData!.materialize().asFloat32List();
+          result = whisper!.transcribe(
             samples: samples,
-            nThreads: message.nThreads
-        );
+            nThreads: message.nThreads,
+          );
+        } else {
+          throw Exception("No audio data or file provided");
+        }
         message.sendPort.send(result);
       } catch (e) {
         message.sendPort.send(e.toString());
