@@ -34,21 +34,28 @@ Future<String> copyModel(String assetPath) async {
 
 ### 3. Transcribe
 
+The recommended way is to use `WhisperIsolate` to keep the UI thread responsive.
+
 ```dart
 import 'package:whisper_dart/whisper_dart.dart';
 
-// Initialize
-final whisper = Whisper(modelPath: modelPath);
+// 1. Initialize Isolate (ideally once for the app)
+final whisperIsolate = await WhisperIsolate.create(modelPath: modelPath);
 
-print(Whisper.version);
+// 2. Transcribe a WAV file directly (16kHz mono)
+// Decoding and transcription happen in the background isolate.
+final String text = await whisperIsolate.transcribe(
+  audioFile: 'path/to/audio.wav',
+  nThreads: 4,
+);
 
-// Transcribe (16kHz mono PCM)
-final res = whisper.transcribe(audioSamples);
-print(res);
+print("Transcription: $text");
 
-// Dispose
-whisper.dispose();
+// 3. Dispose when done
+whisperIsolate.dispose();
 ```
+
+For advanced use cases, you can also pass `Float32List` samples directly using `whisperIsolate.transcribe(samples: mySamples)`.
 
 ## Build Configuration
 
