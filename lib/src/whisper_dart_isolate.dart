@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
-
+import 'dart:typed_data';
 import '../whisper_dart.dart';
 
 class WhisperIsolate {
@@ -23,18 +23,25 @@ class WhisperIsolate {
   }
 
   /// Transcribes audio samples in the background isolate.
-  /// [nThreads] - number of threads to use for transcription. Defaults to 4.
-  Future<String> transcribe({required List<double> samples, int nThreads = 4}) async {
+  /// [samples] - 16kHz mono PCM data. MUST be Float32List for performance.
+  /// [nThreads] - number of threads to use. Defaults to 4.
+  Future<String> transcribe({required Float32List samples, int nThreads = 4}) async {
     final responsePort = ReceivePort();
-    _sendPort.send(_TranscribeMessage(responsePort.sendPort, samples, nThreads));
+
+    // OPTIMIZATION: Wrap data in TransferableTypedData.
+    // This allows passing the large audio buffer to the isolate
+    // without copying the memory, significantly reducing UI jank.
+    final transferable = TransferableTypedData.fromList([samples]);
+
+    _sendPort.send(_TranscribeMessage(responsePort.sendPort, transferable, nThreads));
     final result = await responsePort.first;
-    
+
     if (result is String) {
       return result;
     } else if (result is Object) {
-       throw Exception(result.toString());
+      throw Exception(result.toString());
     } else {
-       throw Exception("Unknown error from isolate");
+      throw Exception("Unknown error from isolate");
     }
   }
 
@@ -55,9 +62,10 @@ class _InitMessage {
 
 class _TranscribeMessage {
   final SendPort sendPort;
-  final List<double> samples;
+  // Use TransferableTypedData instead of List/Float32List for transport
+  final TransferableTypedData audioData;
   final int nThreads;
-  _TranscribeMessage(this.sendPort, this.samples, this.nThreads);
+  _TranscribeMessage(this.sendPort, this.audioData, this.nThreads);
 }
 
 // Entry Point
@@ -70,17 +78,22 @@ void _isolateEntryPoint(_InitMessage initMessage) {
   Whisper? whisper;
 
   try {
-     whisper = Whisper(modelPath: initMessage.modelPath);
+    whisper = Whisper(modelPath: initMessage.modelPath);
   } catch (e) {
-     print("WhisperIsolate init failed: $e");
-     return;
+    print("WhisperIsolate init failed: $e");
+    // Ideally send an error back, but for now we just log/return
+    return;
   }
 
   receivePort.listen((message) {
     if (message is _TranscribeMessage) {
       try {
+        // UNPACK: Materialize the transferable data back into a usable Float32List
+        final Float32List samples = message.audioData.materialize().asFloat32List();
+
+        // Pass to the optimized Whisper class
         final result = whisper!.transcribe(
-            samples: message.samples, 
+            samples: samples,
             nThreads: message.nThreads
         );
         message.sendPort.send(result);

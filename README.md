@@ -1,7 +1,13 @@
 # whisper_dart
 
 Dart FFI bindings for [whisper.cpp](https://github.com/ggml-org/whisper.cpp).
-Supported platforms: Android, iOS, macOS, Windows, Linux.
+Supported platforms:
+- [x] Android (Tested and ready)
+- [ ] iOS (Not ready)
+- [ ] macOS
+- [ ] Windows
+- [ ] Linux
+
 
 ## Features
 - Hardware accelerated batch transcription (via NEON/Simd).
