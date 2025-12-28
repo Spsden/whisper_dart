@@ -32,20 +32,20 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _initIsolate() async {
-      try {
-          // Wait for file to exist if not already? 
-          // Actually initPlatformState copies it.
-          // We can't init isolate until we are sure model is there.
-          // So let's defer init.
-      } catch(e) {
-          print("Error initing isolate: $e");
-      }
+    try {
+      // Wait for file to exist if not already?
+      // Actually initPlatformState copies it.
+      // We can't init isolate until we are sure model is there.
+      // So let's defer init.
+    } catch (e) {
+      print("Error initing isolate: $e");
+    }
   }
 
   @override
   void dispose() {
-      _whisperIsolate?.dispose();
-      super.dispose();
+    _whisperIsolate?.dispose();
+    super.dispose();
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -53,29 +53,29 @@ class _MyAppState extends State<MyApp> {
     String version;
     try {
       version = Whisper.version ?? 'Failed to get version';
-      
+
       // Copy model from assets to app documents directory
       final ByteData data = await rootBundle.load('assets/ggml-tiny.bin');
       final Directory dir = await getApplicationDocumentsDirectory();
       final File file = File('${dir.path}/ggml-tiny.bin');
-      
+
       if (!await file.exists()) {
-          await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
+        await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
       }
-      
+
       print("Model path: ${file.path}");
       final whisper = Whisper(modelPath: file.path);
       print("Initialized: ${whisper.isInitialized}");
-      whisper.dispose(); // Only checking init for main thread logic, but we want Isolate for work.
+      whisper
+          .dispose(); // Only checking init for main thread logic, but we want Isolate for work.
 
       // Init isolate now that model exists
       _whisperIsolate = await WhisperIsolate.create(modelPath: file.path);
-
     } catch (e) {
       print(e);
       version = 'Failed to get version: $e';
     }
-    
+
     // If the widget was removed from the tree while the asynchronous platform
     // message was in flight, we want to discard the reply rather than calling
     // setState to update our non-existent appearance.
@@ -84,85 +84,85 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       _whisperVersion = version;
     });
-
   }
 
   Future<void> _transcribeFile() async {
+    setState(() {
+      _isTranscribing = true;
+      _transcription = "Reading file...";
+    });
+
+    try {
+      // 1. Load audio file
+      final ByteData data = await rootBundle.load('assets/jfk.wav');
+
       setState(() {
-          _isTranscribing = true;
-          _transcription = "Reading file...";
+        _transcription = "Decoding WAV...";
       });
-      
-      try {
-          // Load audio file from assets
-          final ByteData data = await rootBundle.load('assets/jfk.wav');
-          
-          setState(() {
-             _transcription = "Decoding WAV...";
-          });
 
-          // Parse WAV - assumes 16-bit mono 16kHz
-          // Skip 44 byte header
-          final headerSize = 44;
-          if (data.lengthInBytes < headerSize) {
-               throw Exception("File too small");
-          }
-          
-          final bytes = data.buffer.asUint8List(headerSize);
-          final samples = <double>[];
-          
-          // Convert Int16 to Float32 [-1.0, 1.0]
-          // data is ByteData. getInt16 handles endianness (default big, we need little for WAV usually?)
-          // WAV is Little Endian usually.
-          for (var i = 0; i < bytes.length; i += 2) {
-              if (i + 1 < bytes.length) {
-                  // asInt16 is not available on Uint8List directly, use ByteData
-                  // But creating ByteData for every sample is slow.
-                  // Better: view
-                  // Actually the whole `data` is ByteData.
-                  // Just use it.
-                  final sample = data.getInt16(i + headerSize, Endian.little);
-                  samples.add(sample / 32768.0);
-              }
-          }
-          
-          setState(() {
-             _transcription = "Transcribing (${samples.length} samples)...";
-          });
-
-
-
-          if (_whisperIsolate == null) {
-
-               final dir = await getApplicationDocumentsDirectory();
-               final modelPath = '${dir.path}/ggml-tiny.bin';
-               _whisperIsolate = await WhisperIsolate.create(modelPath: modelPath);
-          }
-          
-          final text = await _whisperIsolate!.transcribe(samples: samples, nThreads: 4); // Optimized with 4 threads
-          
-          setState(() {
-              _transcription = text;
-          });
-
-      } catch (e) {
-          setState(() {
-              _transcription = "Error: $e";
-          });
-      } finally {
-          setState(() {
-              _isTranscribing = false;
-          });
+      // 2. Parse WAV Header
+      const headerSize = 44;
+      if (data.lengthInBytes < headerSize) {
+        throw Exception("File too small");
       }
+
+      // 3. Calculate number of samples (Total bytes - header / 2 bytes per sample)
+      final int numSamples = (data.lengthInBytes - headerSize) ~/ 2;
+
+      // 4. Create Float32List directly (Faster than List<double>)
+      final samples = Float32List(numSamples);
+
+      // 5. Convert Int16 PCM to Float32
+      for (var i = 0; i < numSamples; i++) {
+        // Calculate byte offset: Header + (Sample Index * 2)
+        final int offset = headerSize + (i * 2);
+
+        // Read Int16 (Little Endian for WAV)
+        final int sample = data.getInt16(offset, Endian.little);
+
+        // Normalize to Float32 [-1.0, 1.0]
+        samples[i] = sample / 32768.0;
+      }
+
+      setState(() {
+        _transcription = "Transcribing (${samples.length} samples)...";
+      });
+
+      // Check Isolate
+      if (_whisperIsolate == null) {
+        // Make sure this path matches what you actually saved in initPlatformState
+        // or ensure you copy the q8 model if you intend to use it.
+        final dir = await getApplicationDocumentsDirectory();
+        final modelPath = '${dir.path}/ggml-tiny-q8_0.bin';
+        _whisperIsolate = await WhisperIsolate.create(modelPath: modelPath);
+      }
+
+      // 6. Pass Float32List to Isolate
+      final text = await _whisperIsolate!.transcribe(
+        samples: samples,
+        nThreads: 4,
+      );
+
+      setState(() {
+        _transcription = text;
+      });
+    } catch (e) {
+      setState(() {
+        _transcription = "Error: $e";
+      });
+      print(e); // Print to console for detailed stack trace
+    } finally {
+      setState(() {
+        _isTranscribing = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Whisper.dart Example'),
-        ),
+        appBar: AppBar(title: const Text('Whisper.dart Example')),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -170,18 +170,18 @@ class _MyAppState extends State<MyApp> {
               Text('Whisper.cpp Version: $_whisperVersion\n'),
               const SizedBox(height: 20),
               if (_isTranscribing)
-                  const CircularProgressIndicator()
+                const CircularProgressIndicator()
               else
-                  ElevatedButton(
-                      onPressed: _transcribeFile, 
-                      child: const Text("Transcribe 'jfk.wav'"),
-                  ),
+                ElevatedButton(
+                  onPressed: _transcribeFile,
+                  child: const Text("Transcribe 'jfk.wav'"),
+                ),
               const SizedBox(height: 20),
               Expanded(
-                  child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(_transcription),
-                  ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(_transcription),
+                ),
               ),
             ],
           ),
@@ -190,5 +190,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-
