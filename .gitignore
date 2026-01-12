@@ -31,3 +31,7 @@ migrate_working_dir/
 .flutter-plugins
 .flutter-plugins-dependencies
 build/
+
+# Build artifacts
+build_macos_libs/
+native_src/

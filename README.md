@@ -4,7 +4,7 @@ Dart FFI bindings for [whisper.cpp](https://github.com/ggml-org/whisper.cpp).
 Supported platforms:
 - [x] Android (Tested and ready)
 - [ ] iOS (Not ready)
-- [ ] macOS
+- [x] macOS (Tested and ready)
 - [ ] Windows
 - [ ] Linux
 

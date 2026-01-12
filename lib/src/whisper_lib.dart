@@ -13,7 +13,7 @@ WhisperBindings get bindings {
   } else if (Platform.isIOS) {
     dylib = DynamicLibrary.process();
   } else if (Platform.isMacOS) {
-    dylib = DynamicLibrary.process(); 
+    dylib = DynamicLibrary.open('libwhisper.dylib'); 
   } else if (Platform.isWindows) {
     dylib = DynamicLibrary.open('whisper.dll');
   } else if (Platform.isLinux) {
